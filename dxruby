@@ -102,9 +102,14 @@ class HSVPane
   def initialize
     @r = 100
     @x, @y = 10, 30
+    @image = reset_image(@r)
   end
 
-  def set_hsv(argb)
+  def reset
+    @image = reset_image(@r)
+  end
+
+  def set(argb)
     @argb = argb
     a, r, g, b = argb
 
@@ -115,38 +120,45 @@ class HSVPane
     cmin = [r, g, b].min
     cmax = [r, g, b].max
 
-    return false if cmin == cmax
-
-    if cmin == b
-      h = 60 * (g - r) / (cmax -cmin) + 60
+    if cmin == cmax
+      h = 0.0
+      v = cmin
+      s = 0.0
+    else
+      if cmin == b
+        h = 60 * (g - r) / (cmax -cmin) + 60
+      end
+      if cmin == r
+        h = 60 * (b - g) / (cmax -cmin) + 180
+      end
+      if cmin == g
+        h = 60 * (r - b) / (cmax -cmin) + 300
+      end
+      v = cmax
+      s = (cmax - cmin)        # 円錐モデル
+      s = (cmax - cmin) / cmax # 円柱モデル
     end
-    if cmin == r
-      h = 60 * (b - g) / (cmax -cmin) + 180
-    end
-    if cmin == g
-      h = 60 * (r - b) / (cmax -cmin) + 300
-    end
-    v = cmax
-    s = (cmax - cmin)        # 円錐モデル
-    s = (cmax - cmin) / cmax # 円柱モデル
 
     @h, @s, @v = h, s, v
-    true
+    [@h, @s, @v]
+  end
+
+  def reset_image(r)
+    x0 = r
+    y0 = r
+    gray = [255, 100, 100, 100]
+    image = Image.new(r * 2, r * 2)
+    image.circle(x0, y0, r, gray)
+    image
   end
 
   def draw
-    x0 = @x + @r
-    y0 = @y + @r
     t = @h / 360.0 * 2 * Math::PI
-    x = (@s * @r * Math.cos(t)).to_i
-    y = (@s * @r * Math.sin(t)).to_i
-    gray = [255, 100, 100, 100]
-    Window.draw_circle(x0, y0, @r, gray)
-    Window.draw_box_fill(x0+x-1, y0+y-1, x0+x+1, y0+y+1, @argb)
-  end
-
-  def hsv
-    [@h, @s, @v]
+    x = @r + (@s * @r * Math.cos(t)).to_i
+    y = @r + (@s * @r * Math.sin(t)).to_i
+    #@image.box_fill(x-1, y-1, x+1, y+1, @argb)
+    @image.circle(x, y, 1, @argb)
+    Window.draw(@x, @y, @image)
   end
 end
 
@@ -166,6 +178,8 @@ Window.loop do
   bi.move_up    if Input.key_push?(K_I) # ^
   bi.move_down  if Input.key_push?(K_K) # v
 
+  hsvp.reset  if Input.key_push?(K_R) # r
+
   bi.draw
 
   mx = Input.mouse_pos_x
@@ -173,10 +187,8 @@ Window.loop do
 
   argb = bi.argb(mx, my)
 
-  next unless hsvp.set_hsv(argb)
+  hsv = hsvp.set(argb)
 
   hsvp.draw
-  text.draw(hsvp.hsv)
+  text.draw(hsv)
 end
-
-

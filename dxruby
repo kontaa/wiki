@@ -1,0 +1,182 @@
+
+require 'dxruby'
+
+class ImagePane
+  def initialize(file, x, y)
+    @image = Image.load(file)
+    @x, @y = x, y
+
+    @ix, @iy = 0, 0
+    @xy_div = 3
+
+    iw,  ih = 30, 30
+    @iw = [iw, biw].min
+    @ih = [ih, bih].min
+    set_slice
+  end
+
+  def xd
+    @iw.div(@xy_div)
+  end
+
+  def yd
+    @ih.div(@xy_div)
+  end
+
+  def biw
+     @image.width
+  end
+
+  def bih
+     @image.height
+  end
+
+  def move_left
+    if @ix - xd < 0
+      @ix = 0
+    else
+      @ix -= xd
+    end
+    set_slice
+  end
+
+  def move_right
+    w = biw - @iw
+    if @ix + xd > w
+      @ix = w
+    else
+      @ix +=xd
+    end
+    set_slice
+  end
+
+  def move_up
+    if @iy - yd < 0
+      @iy = 0
+    else
+      @iy -= yd
+    end
+    set_slice
+  end
+
+  def move_down
+    h = bih - @ih
+    if @iy + yd > h
+      @iy = h
+    else
+      @iy += yd
+    end
+    set_slice
+  end
+
+  def set_slice
+    @slice = @image.slice(@ix, @iy, @iw, @ih)
+  end
+
+  def draw
+    Window.draw(@x, @y, @slice)
+  end
+
+  def argb(x, y)
+    @slice[x - @x, y - @y]
+  end
+
+end
+
+class TextPane
+  def initialize(font_size)
+    @font = Font.new(font_size)
+    @x = 10
+    @y = 3
+    @fmt = "HSV: %3.0f, %5.3f, %5.3f"
+  end
+
+  def draw(hsvp)
+    h, s, v = *hsvp
+    m = sprintf(@fmt, h, s, v)
+    Window.draw_font(@x, @y, m, @font)
+  end
+end
+
+class HSVPane
+  def initialize
+    @r = 100
+    @x, @y = 10, 30
+  end
+
+  def set_hsv(argb)
+    @argb = argb
+    a, r, g, b = argb
+
+    r = r / 255.0
+    g = g / 255.0
+    b = b / 255.0
+
+    cmin = [r, g, b].min
+    cmax = [r, g, b].max
+
+    return false if cmin == cmax
+
+    if cmin == b
+      h = 60 * (g - r) / (cmax -cmin) + 60
+    end
+    if cmin == r
+      h = 60 * (b - g) / (cmax -cmin) + 180
+    end
+    if cmin == g
+      h = 60 * (r - b) / (cmax -cmin) + 300
+    end
+    v = cmax
+    s = (cmax - cmin)        # 円錐モデル
+    s = (cmax - cmin) / cmax # 円柱モデル
+
+    @h, @s, @v = h, s, v
+    true
+  end
+
+  def draw
+    x0 = @x + @r
+    y0 = @y + @r
+    t = @h / 360.0 * 2 * Math::PI
+    x = (@s * @r * Math.cos(t)).to_i
+    y = (@s * @r * Math.sin(t)).to_i
+    gray = [255, 100, 100, 100]
+    Window.draw_circle(x0, y0, @r, gray)
+    Window.draw_box_fill(x0+x-1, y0+y-1, x0+x+1, y0+y+1, @argb)
+  end
+
+  def hsv
+    [@h, @s, @v]
+  end
+end
+
+
+file = "c:\\tmp\\img\\b.png"
+
+text = TextPane.new(11)
+bi   = ImagePane.new(file, 300, 30)
+hsvp = HSVPane.new
+
+Window.loop do
+  break if Input.key_push?(K_ESCAPE) 
+  break if Input.key_push?(K_Q) 
+
+  bi.move_left  if Input.key_push?(K_J) # <
+  bi.move_right if Input.key_push?(K_L) # >
+  bi.move_up    if Input.key_push?(K_I) # ^
+  bi.move_down  if Input.key_push?(K_K) # v
+
+  bi.draw
+
+  mx = Input.mouse_pos_x
+  my = Input.mouse_pos_y
+
+  argb = bi.argb(mx, my)
+
+  next unless hsvp.set_hsv(argb)
+
+  hsvp.draw
+  text.draw(hsvp.hsv)
+end
+
+

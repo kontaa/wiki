@@ -1,4 +1,3 @@
-
 require 'dxruby'
 
 class ImagePane
@@ -12,6 +11,10 @@ class ImagePane
     @iw = [h[:w], biw].min
     @ih = [h[:h], bih].min
     set_slice
+  end
+
+  def dispose
+    @image.dispose
   end
 
   def xd
@@ -84,7 +87,6 @@ end
 
 class TextPane
   def initialize(h)
-    #font_size, x=10, y=3)
     @font = Font.new(h[:font_size])
     @x = h[:x]
     @y = h[:y]
@@ -96,6 +98,18 @@ class TextPane
     m1 = sprintf(@fmt1, hsv.h, hsv.s, hsv.v)
     m2 = sprintf(@fmt2, argb[-3], argb[-2], argb[-1])
     Window.draw_font(@x, @y, m1 + ",  " + m2, @font)
+  end
+end
+
+class TextPane2
+  def initialize(h)
+    @font = Font.new(h[:font_size])
+    @x = h[:x]
+    @y = h[:y]
+  end
+
+  def draw(file)
+    Window.draw_font(@x, @y, "ファイル: " + file, @font)
   end
 end
 
@@ -126,7 +140,8 @@ class HSVPane < Sprite
     t = hsv.h / 360.0 * 2 * Math::PI
     x = @r + (hsv.s * @r * Math.cos(t)).to_i
     y = @r + (hsv.s * @r * Math.sin(t)).to_i
-    self.image.circle(x, y, 1, hsv.argb)
+    #self.image.circle(x, y, 1, hsv.argb)
+    self.image[x, y] = hsv.argb
   end
 end
 
@@ -163,7 +178,8 @@ class VPane < Sprite
     x = @r + (hsv.s * @r * Math.cos(t)).to_i
     y = @h - (hsv.v * @h).to_i
     dr = 1
-    self.image.circle(x, y, dr, hsv.argb)
+    #self.image.circle(x, y, dr, hsv.argb)
+    self.image[x, y] = hsv.argb
   end
 end
 
@@ -236,6 +252,7 @@ vp2 =    VPane.new(x:x2, y:y2, r:r, h:h, angle:a2)
 
 imagep   = ImagePane.new(file:file, x:x3, y:y3, w:900, h:900)
 textp = TextPane.new(font_size:11, x:x0, y:3)
+textp2 = TextPane2.new(font_size:11, x:x3, y:3)
 
 hsv = HSV.new
 
@@ -243,6 +260,15 @@ Window.loop do
   break if Input.key_push?(K_ESCAPE) 
   break if Input.key_push?(K_Q) 
   hsvp.reset    if Input.key_push?(K_R) # r
+
+  if Input.key_push?(K_O)
+    filter = [["全てのファイル", "*.*"]]
+    title = "ファイルオープン"
+    file = Window.open_filename(filter, title)
+    imagep.dispose if imagep
+    imagep   = ImagePane.new(file:file, x:x3, y:y3, w:900, h:900)
+    Input.set_cursor(IDC_ARROW)
+  end
 
   if Input.key_push?(K_J) || Input.key_push?(K_A)
     imagep.move_left
@@ -256,7 +282,6 @@ Window.loop do
   if Input.key_push?(K_K) || Input.key_push?(K_S)
     imagep.move_down
   end
-
 
   mx = Input.mouse_pos_x
   my = Input.mouse_pos_y
@@ -276,6 +301,8 @@ Window.loop do
   argb = imagep.argb(mx + 0, my + 0)
   hsv = hsv.set(argb)
   textp.draw(hsv, argb)
+
+  textp2.draw(file)
 
   imagep.draw
   hsvp.draw
